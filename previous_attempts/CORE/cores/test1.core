@@ -1,0 +1,5 @@
+f = 3 ;
+h x = case (let y = x in y) of
+        <1> -> 2 / 
+        <2> -> 5 ;
+g x y = let x = z in x

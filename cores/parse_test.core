@@ -1,0 +1,136 @@
+|| Prelude
+{-
+    at least one multiline comment
+    ...
+-}
+
+I x = x    ;
+K x y = {- or more ? -} x  ;
+K1 x y = y
+;
+
+S f g x = f x (g x)     ;
+compose f g x = f (g x) ;
+twice f = compose f f
+;
+
+
+|| Basic tests
+id = S K K ;
+idTest = id 3
+;
+
+idTest2 = twice twice twice id 3
+;
+
+|| Less evaluation if updating is implemented
+updateTest = twice (I I I) 3
+;
+
+
+|| Functional Booleans
+True  t f = t ;
+False t f = f ;
+if = I ;
+and b1 b2 t f = b1 (b2 t f) f ;
+or b1 b2 t f  = b1 t (b2 t f) ;
+not b t f     = b f t ;
+
+|| Functional Lists
+cons x xs cc cn = cc x xs ;
+nil      cc cn  = cn      ;
+head list = list K abort  ;
+tail list = list K1 abort ;
+infinite x = cons x (infinite x) ;
+testInfinite = head (tail (infinite 4))
+;
+abort = abort ;
+
+
+
+|| See updateTest
+updateTest2 = let id1 = I I I
+              in id1 id1 3 ;
+
+|| Another, similar
+oct g x = let h = twice g
+          in let k = twice h
+          in k (k x) ;
+updateTest3 = oct I 4
+;
+
+|| List function, see previous family, this one uses letrec
+infinite_ x = letrec xs = cons x xs
+              in xs ;
+testLetrec = head (tail (tail (infinite 4)))
+;
+
+
+
+|| Arithmetic tests!!
+testArith1 = 4 * 8 + (2 - 5)
+;
+inc x = x + 1 ;
+main = twice twice inc 4
+;
+length xs = xs length1 0       ;
+length1 x xs = 1 + (length xs) ;
+
+testLength = length (cons 3 (cons 2 (cons 1 nil)))
+;
+
+
+|| Arithmetic with conditionals
+fac n = if (n <= 0)
+        1
+        (n * fac (n - 1)) ;
+testFac = fac 10
+;
+gcd a b = if (a == b)
+            a
+            if (a < b) (gcd b a) (gcd b (a - b))
+;
+
+nfib = if (n == 0)
+        1
+        (1 + nfib (n - 1) + nfib (n - 2));
+testFib = nfib 5
+;
+
+
+|| Data structures
+|| Use non-function-based lists
+nil_ = Pack{1,0} ;
+cons_ = Pack{2,2} ;
+countdown n = if (n == 0)
+              nil_
+              (cons_ n (downfrom (n - 1))) ;
+testCountdown = countdown 4
+;
+
+take n xs = if (n == 0)
+            nil_
+            case xs of
+                <1> -> nil_ ;
+                <2> p ps -> cons p (take (n - 1) ps);
+
+nonMultiple p n = (n / p) * p ~= p ;
+
+filter predicate xs =
+    case xs of
+        <1> -> nil_ ;
+        <2> p ps -> let rest = filter predicate ps
+                    in
+                    if (predicate p) (cons p rest) rest ;
+
+from n = cons n (from (n + 1)) ;
+sieve xs = case xs of
+    <1> -> nil_ ;
+    <2> p ps -> cons p (sieve (filter (nonMultiple p) ps))
+;
+testPrimes = take 20 (sieve (from 2))
+
+
+
+
+

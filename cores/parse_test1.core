@@ -1,0 +1,44 @@
+f = 3 ;
+h x = case (let y = x ; a = b in y) of
+        <1> -> f ;
+        <2> -> f * 5 ;
+        <3> -> ( 3 & 5 | 1 * 3)
+        ;
+g = 99
+
+{-
+
+special case: nested sepBy in Parsec
+
+created new function sepByTry
+
+parseF =
+--wrong
+--    let d = sepBy1 (oneOf "ab") (char ';')
+--    in sepBy1
+--        (digit >>= \dig -> d >>= \ab -> return (dig,ab))
+--        (string ";")
+--
+    let d = do
+        x <- (oneOf "ab")
+        xs <- many (try ((char ';') >> (oneOf "ab")))
+        --instead of
+        -- xs <- many ((char ';') >> (oneOf "ab"))
+        return (x:xs)
+    in do
+        let p = do  dig <- digit
+                    ab <- d
+                    return (dig,ab)
+        x <- p
+        xs <- many ((string ";") >> p)
+        return (x:xs)
+
+parser = Text.Parsec.parse parseF ""
+
+parser "2a;b;a;a;a"
+ = Right [('2',"abaaa")]
+
+parser "2a;b;a;a;a;4b;a"
+should = Right [('2',"abaaa"), ('4', "ba")]
+
+-}

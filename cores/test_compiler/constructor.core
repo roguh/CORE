@@ -1,0 +1,7 @@
+  cons x xs = Pack{1,2} x xs
+; nil = Pack{0,0}
+
+; downfrom n = if (n == 0)
+                  nil
+                  (cons n (downfrom (n - 1)))
+; main = downfrom 4

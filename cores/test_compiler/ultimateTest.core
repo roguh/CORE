@@ -1,0 +1,35 @@
+cons x xs = Pack{1,2} x xs                                  ;
+nil = Pack{0,0}                                             ;
+
+from n = cons n (from (n + 1))                              ;
+
+take n xs = if (n == 0)
+                nil
+                (case xs of
+                    <0> -> nil ;
+                    <1> p ps -> cons p (take (n - 1) ps))   ;
+
+sv xs = case xs of
+    <0> -> nil ;
+    <1> p ps -> cons p (sv (filter (nonMultiple p) ps))     ;
+
+sieveOfEratosthenes = sv                                    ;
+
+filter predicate xs = case xs of
+    <0> -> nil ;
+    <1> p ps -> let rest = filter predicate ps
+                in if (predicate p) (cons p rest) rest      ;
+
+nonMultiple p n = ((n / p) * p) ~= n                        ;
+
+{-
+main = take 20 (sieveOfEratosthenes (from 2))
+
+output: 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67 71
+code: []
+stack: []
+stats: (21937,HStats {_allocs = 3700, _upds = 1372, _rms = 0})
+
+-}
+
+main = take 20 (sieveOfEratosthenes (from 2))

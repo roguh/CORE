@@ -1,0 +1,8 @@
+|| Does the alternative starting with <2> attach to the inner case or the outer one? 
+|| Work out your answer, and see if your parser behaves as you expect. This is known as the ‘dangling else’ question.
+
+
+f x y = case x of
+        <1> -> case y of
+                <1> -> 1 ;
+        <2> -> 2

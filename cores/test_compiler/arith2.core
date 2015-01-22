@@ -1,0 +1,3 @@
+  twice f x = f (f x)
+; inc x = x + 1
+; main = twice twice twice inc 4

@@ -1,0 +1,18 @@
+cons a b cc cn = cc a b ;
+nil      cc cn = cn     ;
+hd list = list K abort  ;
+tl list = list K1 abort ;
+
+abort = abort ;
+
+length xs = xs length1 0 ;
+length1 x xs = 1 + (length xs) ;
+
+index n l = if (n <= 0) (hd l) (index (n - 1) (tl l));
+
+list3 = cons 1 (cons 2 (cons 3 nil));
+
+|| main = index 2 list3
+||      + length list3 {--}
+
+main = length list3
