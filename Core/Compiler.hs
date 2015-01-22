@@ -27,7 +27,7 @@ run showFunc fname coreCompiler = parse fname >=> compile >=> eval >=>
 
 runTest = run ((:[]) . showStateTrace)
 runIncremental = run showIncrementalResults
-runFast = run ((:[]) . showResult)
+runPlain = run ((:[]) . showResult)
 
 parseEval :: CoreCompiler state => FilePath -> state -> RunCore state -> ([Text] -> IO ()) -> Text -> IO ()
 parseEval fname compiler runFunc printer txt =
@@ -45,3 +45,5 @@ parsePrintText = parsePrint ""
 parsePrint fname = putAndWriteTo "result" . either (pack . showErr) pprint . parse fname
 
 putAndWriteTo fname str = putStrLn str >> writeFile fname str
+
+runCore compiler = parseEvalText compiler runPlain (print . Prelude.last) . pack

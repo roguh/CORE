@@ -1,11 +1,12 @@
 # CORE
 Implementation of SPJ's Tutorial Core compilers written using modern Haskell
-programming practices (mostly Monadic error handling and parsing using Parsec)
+programming practices. Big changes include Monadic error handling and parsing
+using Parsec.
 
 The template instantiation machine was partially implemented, the GMachine is
 entirely implemented (up to Mk6).
 
-For now, load Main into GHCi and use runCore and specify a compiler to use.
+For now, load Main into GHCi and use `runCore`
 This interface will soon be better organized as a Haskeline REPL.
 ```haskell
 >>> runCore gmachineMk5 "main = fac 20 ; fac n = if (n <= 0) 1 (n * (fac (n - 1)))"
@@ -21,7 +22,7 @@ point. I'll be done once I implement a [STG machine](http://research.microsoft.c
 
 
 
-Also, I mainly used NixOS for this, sandboxed installation is easy with
+Also, I mainly used NixOS for this. Sandboxed installation is easy with
 ```
 nix-shell core.nix
 ```
