@@ -4,10 +4,10 @@
 let
   hsEnv = haskellPackages.ghcWithPackages (hsPkgs : (with hsPkgs ; [
     hlint
-#    ghcMod
-#    hdevtools
-#    parsec
-#    text
+    ghcMod
+    hdevtools
+    parsec
+    text
   ]));
 in
 haskellPackages.cabal.mkDerivation (self: {
