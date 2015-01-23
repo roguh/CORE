@@ -1,21 +1,21 @@
 { pkgs ? (import <nixpkgs> {})
-, haskellPackages ? pkgs.haskellPackages_ghc763
+, haskellPackages ? pkgs.haskellPackages
 }:
 let
   hsEnv = haskellPackages.ghcWithPackages (hsPkgs : (with hsPkgs ; [
     hlint
-    ghcMod
-    hdevtools
-    parsec
-    text
+#    ghcMod
+#    hdevtools
+#    parsec
+#    text
   ]));
 in
 haskellPackages.cabal.mkDerivation (self: {
   pname = "core";
   version = "0.1.0.0";
-  src = /home/croh/db/Dropbox/dev/hs/CORE;
   isLibrary = false;
   isExecutable = true;
+  src = ./.;
   buildDepends = [
     hsEnv ];
   extraCmds = ''
