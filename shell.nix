@@ -1,5 +1,5 @@
 { pkgs ? (import <nixpkgs> {})
-, haskellPackages ? pkgs.haskellPackages
+, haskellPackages ? pkgs.haskellPackages_ghc763
 }:
 let
   hsEnv = haskellPackages.ghcWithPackages (hsPkgs : (with hsPkgs ; [
@@ -8,6 +8,7 @@ let
     hdevtools
     parsec
     text
+    haskeline
   ]));
 in
 haskellPackages.cabal.mkDerivation (self: {

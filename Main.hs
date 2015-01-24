@@ -1,8 +1,10 @@
 module Main where
 
 import qualified Data.Text.IO as TIO
+import Data.Text as T (isPrefixOf, unlines, pack, unpack)
 
 import Control.Monad
+import Control.Monad.IO.Class
 
 import System.IO
 import System.CPUTime
@@ -27,16 +29,10 @@ import Core.Compiler.GMachineMk6
 import Core.Compiler
 import Core.Util.Prelude
 
-compilers =
-    [ ("GMachine Mk1", gmachinemk1), ("GMachine Mk2", gmachinemk2)
-    , ("GMachine Mk3", gmachinemk3), ("GMachine Mk4", gmachinemk4)
-    , ("GMachine Mk5", gmachinemk5), ("GMachine Mk6", gmachinemk6)
-    , ("GMachine Mk7", gmachinemk7)
-    , ("Template instantiation Mk1", templateMk1)
-    , ("Template instantiation Mk3", templateMk3) ]
+compilers = [templateMk3, gmachineMk6]
 
-data Config = Config { _compiler ::  () , _run :: (), _timeIt :: Bool }
-defaultConfig = Config
+data REPLConfig = Conf { _compiler :: Compiler, _run :: RunCore, _timeIt :: Bool }
+defaultConfig = Conf gmachineMk6 run False
 
 main :: IO ()
 main =
@@ -44,51 +40,58 @@ main =
         hSetBuffering stdin NoBuffering
         as <- getArgs
         case length as of
-            0 -> do putStrLn (helpStr ++ "\n\n" ++ creditsStr)
+            0 -> do putStrLn helpStr
                     runInputT haskelineSettings (loop defaultConfig)
-            _ -> mapM_ (evalFile $ readEvalLines True) as
+            _ -> return ()
      where
-        loop conf = do
-             userSays <- getInputLine "core >>> "
-             maybe
-                (return ())
-                (\expr ->
-                    maybe
-                    (eval expr >> loop) -- eval here
-                    (lookup (head $ words expr) replFuncs)
-                ) userSays
-        time action = do
-            a <- liftIO getCPUTime
-            res <- action
-            b <- liftIO getCPUTime
-            outputStrLn $ "time: " ++ show (fromIntegral (b - a) / 1e12)
-            return res
-        replFuncs =
-            [ (".?",    \conf -> outputStrLn helpStr >> loop)
-            , (".help", \conf -> TIO.print (T.unlines primitives) >> loop e)
-            , (".toggletime", \conf -> do
-                outputStrLn $ "timing enabled: " ++ show (not (_timeIt conf))
-                loop $ conf{ _timeIt = not $ _timeIt conf })
-            , (".quit", \conf -> outputStrLn "au revoir")
-            ]
-        helpStr = "Type a core expression or a REPL command: " ++ unwords (map fst replFuncs)
-        creditsStr = unlines
-            [ "Written in VIM and compiled by Glasgow's Haskell Compiler" ]
-
-        evalFile evaluator fname = liftIO $ catchIOError
-                (parseEvalFile comp run print fname)
+        evalFile conf fname = catchIOError
+                (parseEvalFile (_compiler conf) (_run conf) (TIO.putStrLn . last) fname)
                 (putStrLn . (("failure reading " ++ fname ++ "\n")++) . show)
 
-        primitives = map _name prelude
+
         coreCompletions word =
             return $ filter (T.isPrefixOf word)
                     primitives -- (map fst readOnlys ++ map fst bindings ++ map fst replFuncs)
                     --- what to autocomplete...
-                >>= \rep -> return Completion { replacement = rep, display = rep
+                >>= \rep -> return Completion { replacement = unpack rep, display = unpack rep
                                               , isFinished = rep == word }
         haskelineSettings = flip setComplete defaultSettings $ \line -> do
-            (_, cs1) <- completeWord Nothing " \t\n\r\f\v" coreCompletions line
+            (_, cs1) <- completeWord Nothing " \t\n\r\f\v" (coreCompletions . pack) line
             (s, cs2) <- completeFilename line
             return (s, cs1 ++ cs2)
+
+primitives = map _name prelude
+
+loop conf = do
+     userSays <- getInputLine "core >>> "
+     maybe
+        (return ())
+        (\expr ->
+            maybe
+            (   liftIO
+                    (parseEvalText (_compiler conf) (_run conf)
+                    (TIO.putStrLn . last) (pack expr))
+                >> loop conf)
+            ($ conf)
+            (lookup (head $ words expr) replFuncs)
+        ) userSays
+
+time action = do
+    a <- liftIO getCPUTime
+    res <- action
+    b <- liftIO getCPUTime
+    outputStrLn $ "time: " ++ show (fromIntegral (b - a) / 1e12)
+    return res
+
+replFuncs =
+    [ (".?",    \conf -> outputStrLn helpStr >> loop conf)
+    , (".help", \conf -> liftIO (TIO.putStrLn (T.unlines primitives)) >> loop conf)
+    , (".toggletime", \conf -> do
+        outputStrLn $ "timing enabled: " ++ show (not (_timeIt conf))
+        loop $ conf{ _timeIt = not $ _timeIt conf })
+    , (".quit", \conf -> outputStrLn "au revoir")
+    ]
+
+helpStr = "Type a core expression or a REPL command: " ++ unwords (map fst replFuncs)
 
 
