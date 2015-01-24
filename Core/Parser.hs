@@ -12,12 +12,12 @@ import Data.Text.IO as Text (readFile)
 
 import Core.Types
 
-parseFile :: FilePath -> IO (ThrowsError [Supercombo Text])
+parseFile :: FilePath -> IO (ThrowsError CoreProgram)
 parseFile fname = Text.readFile fname >>= return . Core.Parser.parse fname
 
 parseConstructor txt = show `left` runParser constructor () "" txt
 
-parse :: FilePath -> Text -> ThrowsError [Supercombo Text]
+parse :: FilePath -> Text -> ThrowsError CoreProgram
 parse fname txt = show `left` runParser (sepBy1 supercombo (char ';')) () fname txt
 
 f `left` (Left l) = throwError $ f l

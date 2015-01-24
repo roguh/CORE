@@ -131,7 +131,7 @@ dispatch Unwind         state = do
 data GMCompiledSC = GMCompiledSC
     { _scname :: Text, _argNum :: Int, _sccode :: [ Instruction ] }
 
-compileMk1 :: [Supercombo Text] -> ThrowsError GMStateMk1
+compileMk1 :: CoreProgram -> ThrowsError GMStateMk1
 compileMk1 program = do
     (heap, globals) <- do
         compiled <- compiledM

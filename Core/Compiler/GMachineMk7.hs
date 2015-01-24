@@ -274,7 +274,7 @@ rearrangeStack name n heap stk = do
 data GMCompiledSC = GMCompiledSC
     { _scname :: Text, _argNum :: Int, _sccode :: [ Instruction ] }
 
-compileMk7 :: [Supercombo Text] -> ThrowsError GMStateMk7
+compileMk7 :: CoreProgram -> ThrowsError GMStateMk7
 compileMk7 program = do
     (heap, globals) <- do
         compiledProg <- mapM compileSupercombo (prelude ++ program)

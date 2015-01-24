@@ -1,8 +1,8 @@
-{-# LANGUAGE NoImplicitPrelude, NoMonomorphismRestriction #-}
+{-# LANGUAGE NoImplicitPrelude, NoMonomorphismRestriction, OverloadedStrings #-}
 module Core.Compiler where
 
 import Data.Text
-import Data.Text.IO
+import Data.Text.IO as TIO
 import Prelude hiding (readFile, appendFile, writeFile, putStrLn)
 import Control.Monad
 
@@ -10,40 +10,34 @@ import Core.Types
 import Core.Parser
 import Core.PrettyPrint
 
-class CoreCompiler state where
-    compile :: [Supercombo Text] -> ThrowsError state
-    eval    :: state -> ThrowsError [state]
-    showStateTrace  :: [state] -> Text
-    showIncrementalResults :: [state] -> [Text]
-    showResult      :: [state] -> Text
-    showResult = showStateTrace
-    showIncrementalResults = (:[]) . showResult
+import Core.Util.Heap
 
-type RunCore state = FilePath -> state -> Text -> ThrowsError [Text]
+data State = State { output :: Text, statistics :: Text }
 
-run :: CoreCompiler st => ([st] -> [Text]) -> RunCore st
-run showFunc fname coreCompiler = parse fname >=> compile >=> eval >=>
-    (\results -> return $ showFunc $ results `asTypeOf` [coreCompiler])
+-- The last state in the result of compiler is expected to hold the final
+-- output
+data Compiler = Compiler { compilerName :: Text
+                         , compiler     :: CoreProgram -> ThrowsError [State] }
 
-runTest = run ((:[]) . showStateTrace)
-runIncremental = run showIncrementalResults
-runPlain = run ((:[]) . showResult)
+type RunCore = FilePath -> Compiler -> Text -> ThrowsError [Text]
 
-parseEval :: CoreCompiler state => FilePath -> state -> RunCore state -> ([Text] -> IO ()) -> Text -> IO ()
-parseEval fname compiler runFunc printer txt =
-    let rs = runFunc fname compiler txt
-    in either (printer . (:[]) . pack) printer rs
+run, runTest :: RunCore
+run fname (Compiler{ compiler=comp }) =
+    parse fname >=> comp >=> return . Prelude.map output
+runTest fname (Compiler{ compiler=comp }) =
+    parse fname >=> comp >=> return . Prelude.map
+    (\(State a b) -> "Final result" `append` a `append` " " `append` b)
+
+parseEval :: FilePath -> Compiler -> RunCore -> ([Text] -> IO ()) -> Text -> IO ()
+parseEval fname compiler runFunc printer =
+    let rs = runFunc fname compiler
+    in either (printer . (:[]) . pack) printer . rs
 
 parseEvalText = parseEval ""
 parseEvalFile comp run print fname = readFile fname >>= parseEval fname comp run print
 
-parseCompile coreCompiler str =
-    (parse "" >=> compile $ pack str) `asTypeOf` Right coreCompiler
-
 parsePrintFile fname = readFile fname >>= parsePrint fname
 parsePrintText = parsePrint ""
-parsePrint fname = putAndWriteTo "result" . either (pack . showErr) pprint . parse fname
+parsePrint fname = print . either (pack . showErr) pprint . parse fname
 
-putAndWriteTo fname str = putStrLn str >> writeFile fname str
-
-runCore compiler = parseEvalText compiler runPlain (print . Prelude.last) . pack
+runCore compiler = parseEvalText compiler run (putStrLn . Prelude.last) . pack

@@ -64,7 +64,7 @@ initStats = Stats initHStats 0 0 0 0
 
 initDump = ()
 
-compileMk1 :: [Supercombo Text] -> ThrowsError TiStateMk1
+compileMk1 :: CoreProgram -> ThrowsError TiStateMk1
 compileMk1 program = do
     let supercombos = prelude ++ program
     let (iHeap, globals) = buildInitialHeap supercombos

@@ -4,7 +4,7 @@ module Core.Compiler.TemplateMk3
 --(compile, eval, showResults, runCore)
 where
 
-import Data.Text as Text
+import Data.Text (Text, unpack, pack)
 import qualified Data.Text.IO as TIO
 
 import Control.Monad
@@ -21,13 +21,26 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-templateMk3 :: TiStateMk3
-templateMk3 = undefined
+templateMk3 :: Compiler
+templateMk3 = Compiler
+    "Template Instantiator Mk3"
+    (compileMk3 >=> evalMk3 >=> return .
+    map (\st -> State
+        (pack $ either ("BAD ADDR AT TOP OF STACK "++) show $
+            H.lookup (head $ _stack st) (_heap st))
+        (pack $ showState st)))
 
-instance CoreCompiler TiStateMk3 where
-    compile = compileMk3
-    eval = evalMk3
-    showStateTrace = showResultsMk3
+showState (TS stk dump heap globs stats) =
+   "stack: " ++ show stk ++
+    "\ndump: " ++ show dump ++
+    "\nglobs: " ++ show globs ++
+    "\nsteps taken: " ++ show stats ++
+    "\n" ++ showHeap heap
+
+
+
+
+
 
 data Node = NApp Addr Addr
           | NSupercombo Text [Text] (Expr Text)
@@ -66,22 +79,7 @@ isDataNode _ = False
 
 initDump = ()
 
-showResultsMk3 :: [TiStateMk3] -> Text
-showResultsMk3 [] = "no results!"
-showResultsMk3 ts = Text.concat (Prelude.map (\s -> pack (showResult' s) `append` "\n\n") ts)
-             `append` "final result: "
-             `append` either (pack . show) (pack . show)
-                (H.lookup (Prelude.head $ _stack final) (_heap final))
-    where   final = Prelude.last ts
-
-showResult' (TS stk dump heap globs stats) =
-   "stack: " ++ show stk ++
-    "\ndump: " ++ show dump ++
-    "\nglobs: " ++ show globs ++
-    "\nsteps taken: " ++ show stats ++
-    "\n" ++ showHeap heap
-
-compileMk3 :: [Supercombo Text] -> ThrowsError TiStateMk3
+compileMk3 :: CoreProgram -> ThrowsError TiStateMk3
 compileMk3 program = do
     let supercombos = prelude ++ program
     let (iHeap, globals) = buildInitialHeap supercombos
@@ -113,7 +111,7 @@ evalMk3With cfg state = do
     isFin <- isFinal state
     rest <- -- step trace in case of error
         (if not $ printStepTrace cfg then id else
-        flip catchError (\e -> throwError $ showResult' state ++ "\n\n" ++ e))
+        flip catchError (\e -> throwError $ showState state ++ "\n\n" ++ e))
             (if isFin
             then return []
             else liftM (doAdmin state) (step state) >>= evalMk3With cfg)

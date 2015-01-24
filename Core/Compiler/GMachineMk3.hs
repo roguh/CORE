@@ -162,7 +162,7 @@ rearrangeStack name n heap stk = do
 data GMCompiledSC = GMCompiledSC
     { _scname :: Text, _argNum :: Int, _sccode :: [ Instruction ] }
 
-compileMk3 :: [Supercombo Text] -> ThrowsError GMStateMk3
+compileMk3 :: CoreProgram -> ThrowsError GMStateMk3
 compileMk3 program = do
     (heap, globals) <- do
         compiled <- compiledM

@@ -1,13 +1,14 @@
 module Core.Types where
 
 import Data.Text (Text, pack)
+import Data.Text as T (concat)
 
 type Tag       = Int
 type Arity     = Int
 type IsRecursive = Bool
 
--- 'a' is the type of binding positions, usually just String or similar
-data Expr a = Var Text
+-- 'a' is the type of binding labels, usually just String or similar
+data Expr a = Var a
             | Num Int
             | Constructor Tag Arity
             | App (Expr a) (Expr a)
@@ -21,7 +22,7 @@ data Supercombo a = Supercombo { _name :: Text, _bindings :: [a], _body :: Expr 
 
 type ThrowsError a = Either String a
 
-type CoreProg = [Supercombo Text]
+type CoreProgram = [Supercombo Text]
 
 showErr = ("ERROR: " ++)
 

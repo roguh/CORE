@@ -14,7 +14,7 @@ joinSemiSep first sep = T.append (T.pack first) . T.concat . intersperse (T.pack
 tabs n l = l ++ replicate n '\t'
 
 -- O(n^2) haha
-pprint :: [Supercombo Text] -> Text
+pprint :: CoreProgram -> Text
 pprint =
     joinSemiSep "" ";\n\n" . map (\(Supercombo name bindings bod) ->
             name
