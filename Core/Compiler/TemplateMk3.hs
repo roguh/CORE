@@ -25,10 +25,10 @@ templateMk3 :: Compiler
 templateMk3 = Compiler
     "Template Instantiator Mk3"
     (compileMk3 >=> evalMk3 >=> return .
-    map (\st -> State
-        (pack $ either ("BAD ADDR AT TOP OF STACK "++) show $
-            H.lookup (head $ _stack st) (_heap st))
-        (pack $ showState st)))
+    map (\st -> defaultState
+        { output = pack $ either showErr show $
+            H.lookup (head $ _stack st) (_heap st)
+        , statistics = pack $ showState st}))
 
 showState (TS stk dump heap globs stats) =
    "stack: " ++ show stk ++
@@ -133,7 +133,7 @@ appStep ts@(TS {_stack = stack}) f x = return $ ts {_stack = f:stack}
 -- push root of the result onto the stack
 -- finally, update the root of the redex with the result
 supercomboStep ts _ argNames bod = do
-    let nArgs = (Prelude.length argNames)
+    let nArgs = Prelude.length argNames
         rootAddr = _stack ts !! nArgs
         newStack = Prelude.drop (nArgs + 1) (_stack ts)
     args <- getargs nArgs (_heap ts) (_stack ts)

@@ -13,6 +13,7 @@ import Core.PrettyPrint
 import Core.Util.Heap
 
 data State = State { output :: Text, statistics :: Text }
+defaultState = State { output = "", statistics = "" }
 
 -- The last state in the result of compiler is expected to hold the final
 -- output

@@ -26,9 +26,9 @@ gmachineMk6 :: Compiler
 gmachineMk6 = Compiler
     "GMachine Mk6"
     (compileMk6 >=> evalMk6 >=> return .
-    map (\st -> State
-        (showResultMk6 st)
-        (pack $ show st)))
+    map (\st -> defaultState
+        { output = showResultMk6 st
+        , statistics = pack $ show st }))
 
 showResultMk6 = pack . concat . intersperse " " . _output
 
