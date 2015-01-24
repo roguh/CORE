@@ -22,23 +22,17 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-gmachineMk6 :: GMStateMk6
-gmachineMk6 = undefined
+gmachineMk6 :: Compiler
+gmachineMk6 = Compiler
+    "GMachine Mk6"
+    (compileMk6 >=> evalMk6 >=> return .
+    map (\st -> State
+        (showResultMk6 st)
+        (pack $ show st)))
 
-instance CoreCompiler GMStateMk6 where
-    compile = compileMk6
-    eval = evalMk6
-    showStateTrace = showResultsMk6
-    showResult = showResultMk6
-    showIncrementalResults = map
-        (\(GMS out code stack _ heap _ stats _) ->
-            pack $ "output: " ++ out
-                ++ "\ncode: " ++ show code
-                ++ "\nstack: " ++ showStack heap stack
-                ++ "\nstats: " ++ show stats
-                ++ "\n")
+showResultMk6 = pack . concat . intersperse " " . _output
 
-data GMStateMk6 = GMS { _output :: String
+data GMStateMk6 = GMS { _output :: [String]
                       , _code :: [Instruction], _stack :: [Addr]
                       , _dump :: [([Instruction], [Addr])]
                       , _heap :: Heap Node    , _globals :: [(Text, Addr)]
@@ -56,7 +50,6 @@ instance Show GMStateMk6 where
      ++ "\nall code: " ++ show (reverse oldcode)
      ++ "\nglobals: " ++ show globals
      ++ "\nstats: " ++ show stats
-     ++ "\noutput: " ++ show output
 
 showHeap' (Heap _ sz free cts) = "heap of size " ++ show sz
     ++ "\nsome free addr: "
@@ -151,13 +144,6 @@ isNum _ = False
 
 isGlobal (NGlobal{}) = True
 isGlobal _ = False
-
-showResultsMk6 :: [GMStateMk6] -> Text
-showResultsMk6 states =
-    (pack . concatMap ((++"\n\n") . show)) states
-    `append` "\nfinal result: " `append` showResultMk6 states
-
-showResultMk6 = pack . _output . last
 
 evalMk6 :: GMStateMk6 -> ThrowsError [GMStateMk6]
 evalMk6 state = do
@@ -275,7 +261,7 @@ dispatch (Split n)  state = do
 dispatch Print      state = do
     top <- getStackTop state
     let printResult x
-            | (NNum n) <- x = return . (++" ") $ show n
+            | (NNum n) <- x = return $ show n
             | otherwise = throwError $ "cannot print " ++ show x
     case top of
         (NConstr n addrs) ->
@@ -285,7 +271,7 @@ dispatch Print      state = do
                 , _stack = addrs ++ tail (_stack state) }
         x -> do
             toout <- printResult x
-            return $ state{ _stack = tail $ _stack state, _output = _output state ++ toout }
+            return $ state{ _stack = tail $ _stack state, _output = _output state ++ [toout] }
 
 dispatch Unwind         state = do
     when (null $ _stack state)

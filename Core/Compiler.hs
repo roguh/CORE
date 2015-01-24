@@ -26,7 +26,7 @@ run fname (Compiler{ compiler=comp }) =
     parse fname >=> comp >=> return . Prelude.map output
 runTest fname (Compiler{ compiler=comp }) =
     parse fname >=> comp >=> return . Prelude.map
-    (\(State a b) -> "Final result" `append` a `append` " " `append` b)
+    (\(State a b) -> b `append` "\n\nFinal result: " `append` a)
 
 parseEval :: FilePath -> Compiler -> RunCore -> ([Text] -> IO ()) -> Text -> IO ()
 parseEval fname compiler runFunc printer =
