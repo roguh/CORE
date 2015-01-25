@@ -8,35 +8,40 @@ import Control.Applicative
 import Control.Monad.Error
 
 import Data.Text (Text, pack, unpack, append)
+import qualified Data.Text as Text (concat, unwords)
 import Data.Maybe
+import Data.List
 
 import Util
 
 import Core.Types
 
+import Core.Parser (parseConstructor)
 import Core.Util.Heap as H
 import Core.Util.Prelude
 
 import Core.Compiler
 
-gmachineMk7 :: GMStateMk7
-gmachineMk7 = undefined
+gmachineMk7 :: Compiler
+gmachineMk7 = Compiler
+    "gmachinemk7"
+    (compileMk7 >=> evalMk7 >=> return .
+    map (\st -> defaultState
+        { output = showResultMk7 st
+        , statistics = pack $ show st }))
 
-instance CoreCompiler GMStateMk7 where
-    compile = compileMk7
-    eval = evalMk7
-    showStateTrace = showResultsMk7
-    showResult = showResultMk7
+showResultMk7 = Text.unwords . _output
 
-data GMStateMk7 = GMS { _code :: [Instruction], _stack :: [Addr]
-                    , _dump :: [([Instruction], [Addr])]
-                    , _heap :: Heap Node    , _globals :: [(Text, Addr)]
-                    , _statistics :: (Int, HStats)
-                    , _oldcode :: [Instruction] }
-                    deriving Eq
+data GMStateMk7 = GMS { _output :: [Text]
+                      , _code :: [Instruction], _stack :: [Addr]
+                      , _dump :: [([Instruction], [Addr])]
+                      , _heap :: Heap Node    , _globals :: [(Text, Addr)]
+                      , _statistics :: (Int, HStats)
+                      , _oldcode :: [Instruction] }
+                      deriving Eq
 
 instance Show GMStateMk7 where
-    show (GMS code stack dump heap globals stats oldcode) =
+    show (GMS output code stack dump heap globals stats oldcode) =
         "stack: " ++ show stack
      ++ "\nstack references: " ++ showStack heap stack
      ++ "\ndump: " ++ show dump
@@ -54,12 +59,14 @@ showHeap' (Heap _ sz free cts) = "heap of size " ++ show sz
            ++ show binding) cts
 
 
-showStack heap = ("[ "++) . (++"]") . concatMap ((++", ") . deepLookup heap)
+showStack = showListWith . deepLookup
+showListWith f = ("["++) . (++"]") . intercalate ", " . map f
 
 deepLookup heap = go
     where go a = case H.lookup a heap of
             Right (NInd addr') -> "NInd (" ++ go addr' ++ ")"
             Right (NAp a1 a2) -> "(" ++ go a1 ++ ") `NAp` ("++ go a2 ++ ")"
+            Right (NConstr n addrs) -> "NConstr " ++ show n ++ " " ++ showListWith go addrs
             Right x -> showShort x
             Left err -> show a ++ " not found"
 
@@ -75,6 +82,10 @@ data Instruction = Pushglobal Text
                  | Cond [Instruction] [Instruction]
                  | DyArith DyPrim
                  | Neg
+                 | Pack Tag Int
+                 | Casejump [(Int, [Instruction])]
+                 | Split Int
+                 | Print
                  | Unwind
                  deriving (Eq, Show)
 
@@ -114,6 +125,7 @@ coreToBool (NNum _) = return True
 coreToBool x = throwError $ "expected number to use as boolean, found: " ++ show x
 
 data Node = NNum Int
+          | NConstr Int [Addr]
           | NAp Addr Addr
           | NGlobal Text Int [Instruction]
           | NInd Addr
@@ -133,13 +145,6 @@ isNum _ = False
 isGlobal (NGlobal{}) = True
 isGlobal _ = False
 
-showResultsMk7 :: [GMStateMk7] -> Text
-showResultsMk7 states =
-    (pack . (++"\n\n") . show . last) states
-    `append` "\nfinal result: " `append` showResultMk7 states
-
-showResultMk7 = pack . show . getStackTop . last
-
 evalMk7 :: GMStateMk7 -> ThrowsError [GMStateMk7]
 evalMk7 state = do
     restStates <- if isFinal state then return []
@@ -155,15 +160,18 @@ step :: GMStateMk7 -> ThrowsError GMStateMk7
 step state = dispatch i (state{ _code = is, _oldcode = i:_oldcode state})
     where (i:is) = _code state
 
-
-
+constrToGlobal name t n = NGlobal name n [Pack t n, Update 0, Unwind]
 
 dispatch :: Instruction -> GMStateMk7 -> ThrowsError GMStateMk7
 
-dispatch (Pushglobal f) state = do
-    a <- maybeToEither ("undeclared global: " ++ unpack f)
-       $ Prelude.lookup f (_globals state)
-    return $ state{ _stack = a:_stack state }
+dispatch (Pushglobal f) state
+    | Just a <- Prelude.lookup f (_globals state) =
+        return $ state{ _stack = a:_stack state }
+    | Right (Constructor tag nargs) <- parseConstructor f =
+        let (heap', a) = H.alloc (constrToGlobal f tag nargs) (_heap state)
+        in return $ state{ _stack = a : _stack state, _heap = heap'
+                         , _globals = (f, a) : _globals state }
+    | otherwise = throwError $ "undeclared global " ++ unpack f
 
 dispatch (Pushint n)    state
     | isJust allocd = return $ state{ _stack = fromJust allocd : _stack state }
@@ -223,6 +231,48 @@ dispatch Neg            state = do
             in return $ state{ _stack = a' : tail (_stack state), _heap = heap' }
         x -> throwError $ "arithmetic function negate expected integer, found: " ++ show x
 
+dispatch (Pack tag n)       state = do
+    when (length (_stack state) < n) $ throwError $ "constructor expected " ++ show n
+        ++ " arguments to Pack{" ++ show tag ++ "," ++ show n ++ "}"
+    let (heap', a) = H.alloc (NConstr tag nargs) (_heap state)
+        nargs = take n $ _stack state
+    return $ state{ _stack = a : drop n (_stack state), _heap = heap' }
+
+dispatch (Casejump cases)   state = do
+    top <- getStackTop state
+    case top of
+        NConstr tag n -> do
+            let altCode = Prelude.lookup tag cases
+            when (isNothing altCode) $ throwError $ "case expression expected " ++ show n
+                ++ " arguments to Pack{" ++ show tag ++ "," ++ show n ++ "}"
+            return $ state{ _code = fromJust altCode ++ _code state }
+        _ -> throwError "expected a constructor Pack{tag,n}"
+
+dispatch (Split n)  state = do
+    top <- getStackTop state
+    case top of
+        NConstr _ addrs ->
+            if length addrs /= n then throwError
+                $ "split expected Pack{t,n} with n = " ++ show (length addrs) ++ " received " ++ show n
+            else return $ state{ _stack = addrs ++ tail (_stack state) }
+        _ -> throwError
+                $ "split only works on Pack{tag,n} nodes, received: " ++ show top
+
+dispatch Print      state = do
+    top <- getStackTop state
+    let printResult x
+            | (NNum n) <- x = return $ pack $ show n
+            | otherwise = throwError $ "cannot print " ++ show x
+    case top of
+        (NConstr n addrs) ->
+            let multiPrintCode = concat $ replicate (length addrs) [Eval, Print]
+            in return $ state
+                { _code = multiPrintCode ++ _code state
+                , _stack = addrs ++ tail (_stack state) }
+        x -> do
+            toout <- printResult x
+            return $ state{ _stack = tail $ _stack state, _output = _output state ++ [toout] }
+
 dispatch Unwind         state = do
     when (null $ _stack state)
         $  throwError "cannot unwind with an empty stack"
@@ -231,11 +281,15 @@ dispatch Unwind         state = do
         nonEmptyDump = not . null $ _dump state
     -- #1337 hacker
     case () of
-     _  | (NNum _) <- top       -- evaluate numbers to WHNF
+     _  | (NNum {}) <- top       -- evaluate numbers to WHNF
         , nonEmptyDump ->
             let (code', stack') = head $ _dump state
-            in return $ state{ _code = code'
-                             , _stack = head stk : stack'
+            in return $ state{ _code = code', _stack = head stk : stack'
+                             , _dump = tail $ _dump state}
+        | (NConstr {}) <- top
+        , nonEmptyDump ->
+            let (code', stack') = head $ _dump state
+            in return $ state{ _code = code', _stack = head stk : stack'
                              , _dump = tail $ _dump state}
         -- following program would fail without this rule
         -- main = (I I 3) * 3
@@ -279,9 +333,9 @@ compileMk7 program = do
     (heap, globals) <- do
         compiledProg <- mapM compileSupercombo (prelude ++ program)
         return $ mapAccuml allocateSupercombo H.init (compiledProg ++ compiledPrims)
-    return $ GMS initCode [] [] heap globals initStats []
+    return $ GMS [] initCode [] [] heap globals initStats []
     where   initStats = (0, initHStats)
-            initCode = [ Pushglobal "main", Eval ]
+            initCode = [ Pushglobal "main", Eval, Print ]
             allocateSupercombo heap (GMCompiledSC name nargs ins) =
                 (heap', (name, addr))
                 where (heap', addr) = H.alloc (NGlobal name nargs ins) heap
@@ -319,18 +373,27 @@ compileR arity env e = do
 
 compileC :: GMCompiler
 compileC _ (Num n) = return [Pushint n]
+compileC _ (Constructor t n) = return [Pushglobal . pack $ "Pack{" ++ show t ++ "," ++ show n ++ "}"]
 compileC env (Var v)
     | v `elem` map fst env = return [Push . fromJust $ Prelude.lookup v env]
     | otherwise = return [Pushglobal v]
-compileC env (App arg1 arg2) = do
-    arg2C <- compileC env arg2
-    arg1C <- compileC (argOffset 1 env) arg1
-    return $ arg2C ++ arg1C ++ [Mkap]
 compileC env (Let recursive defs expr) = compileLet compileC env recursive defs expr
-compileC _ _ = throwError "not implemented yet!"
+compileC env (App arg1 arg2) = do
+        arg2C <- compileC env arg2
+        arg1C <- compileC (argOffset 1 env) arg1
+        return $ arg2C ++ arg1C ++ [Mkap]
+compileC _ x = throwError $ "not implemented yet! tried to compile: " ++ show x
 
 
 compileE :: GMCompiler
+compileE env x@(Num _) = compileC env x
+-- use strict instructions
+compileE env x@(Constructor _ _) = compileC env x
+-- compileC should do this, w/ compileC instead of compileE
+compileE env (Case expr alts) = do
+    exprCode <- compileE env expr
+    altsCode <- compileAlts compileE env alts
+    return $ exprCode ++ [Casejump altsCode]
 compileE env (Let recursive defs expr) = compileLet compileE env recursive defs expr
 compileE env (App (Var "negate") arg) = (++[Neg]) <$> compileE env arg
 compileE env (App (App (App (Var "if") cond) branch1) branch2) = do
@@ -346,7 +409,14 @@ compileE env x@(App (App (Var binop) arg1) arg2)
     | otherwise = (++[Eval]) <$> compileC env x
   where dyadicPrim = foldl (\a e@(DyPrim (prim, _)) ->
             if prim == unpack binop then Just e else a) Nothing numericPrims
-compileE env x  = (++[Eval]) <$> compileC env x
+compileE env x = (++[Eval]) <$> compileC env x
+
+findConstructor = fmap (\(c, args) -> (c, reverse args)) .
+    go [] where
+    go args (App f x) = go (x:args) f
+    go args x@(Constructor tag nargs) =
+        if length args /= nargs then Nothing else Just (x, args)
+    go _ _ = Nothing
 
 compileLet compileExpr env recursive defs expr
     | recursive = do
@@ -366,6 +436,14 @@ compileLet compileExpr env recursive defs expr
         return $ (concat . reverse) defsCode ++ exprCode ++ [Slide len]
   where len = length defs
         env' = zip (map fst defs) [len-1, len-2 .. 0] ++ argOffset len env
+
+compileAlts compileAltExpr env = mapM compileAlt
+    where compileAlt (tag, args, expr) = do
+            let env' = zip args [0..n - 1] ++ argOffset n env
+                n = length args
+            exprCode <- compileAltExpr env' expr
+            return (tag, [Split n] ++ exprCode ++ [Slide n])
+
 
 argOffset n env = do
     (v, m) <- env

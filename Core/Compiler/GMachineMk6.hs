@@ -8,7 +8,7 @@ import Control.Applicative
 import Control.Monad.Error
 
 import Data.Text (Text, pack, unpack, append)
-import qualified Data.Text as Text (concat)
+import qualified Data.Text as Text (concat, unwords)
 import Data.Maybe
 import Data.List
 
@@ -24,15 +24,15 @@ import Core.Compiler
 
 gmachineMk6 :: Compiler
 gmachineMk6 = Compiler
-    "GMachine Mk6"
+    "gmachinemk6"
     (compileMk6 >=> evalMk6 >=> return .
     map (\st -> defaultState
         { output = showResultMk6 st
         , statistics = pack $ show st }))
 
-showResultMk6 = pack . concat . intersperse " " . _output
+showResultMk6 = Text.unwords . _output
 
-data GMStateMk6 = GMS { _output :: [String]
+data GMStateMk6 = GMS { _output :: [Text]
                       , _code :: [Instruction], _stack :: [Addr]
                       , _dump :: [([Instruction], [Addr])]
                       , _heap :: Heap Node    , _globals :: [(Text, Addr)]
@@ -60,7 +60,7 @@ showHeap' (Heap _ sz free cts) = "heap of size " ++ show sz
 
 
 showStack = showListWith . deepLookup
-showListWith f = ("["++) . (++"]") . concat . intersperse ", " . map f
+showListWith f = ("["++) . (++"]") . intercalate ", " . map f
 
 deepLookup heap = go
     where go a = case H.lookup a heap of
@@ -261,7 +261,7 @@ dispatch (Split n)  state = do
 dispatch Print      state = do
     top <- getStackTop state
     let printResult x
-            | (NNum n) <- x = return $ show n
+            | (NNum n) <- x = return $ pack $ show n
             | otherwise = throwError $ "cannot print " ++ show x
     case top of
         (NConstr n addrs) ->

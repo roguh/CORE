@@ -23,7 +23,7 @@ import Core.Compiler
 
 templateMk3 :: Compiler
 templateMk3 = Compiler
-    "Template Instantiator Mk3"
+    "templatemk3"
     (compileMk3 >=> evalMk3 >=> return .
     map (\st -> defaultState
         { output = pack $ either showErr show $

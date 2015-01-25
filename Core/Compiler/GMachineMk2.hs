@@ -18,13 +18,15 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-gmachineMk2 :: GMStateMk2
-gmachineMk2 = undefined
+gmachineMk2 :: Compiler
+gmachineMk2 = Compiler
+    "gmachinemk2"
+    (compileMk2 >=> evalMk2 >=> return .
+    map (\st -> defaultState
+        { output = showResultMk2 st
+        , statistics = pack $ show st }))
 
-instance CoreCompiler GMStateMk2 where
-    compile = compileMk2
-    eval = evalMk2
-    showStateTrace = showResultsMk2
+showResultMk2 = pack . either id show . (\st -> H.lookup (head $ _stack st) (_heap st))
 
 data GMStateMk2 = GMS { _code :: [Instruction], _stack :: [Addr]
                    , _heap :: Heap Node    , _globals :: [(Text, Addr)]
@@ -58,11 +60,6 @@ data Node = NNum Int
 
 isIndirection (NInd _) = True
 isIndirection _ = False
-
-showResultsMk2 :: [GMStateMk2] -> Text
-showResultsMk2 = pack . (\result ->
-        show result ++ "\nfinal result: "
-        ++ show (H.lookup (head $ _stack result) $ _heap result)) . last
 
 evalMk2 :: GMStateMk2 -> ThrowsError [GMStateMk2]
 evalMk2 state = do

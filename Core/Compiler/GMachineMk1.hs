@@ -18,13 +18,15 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-instance CoreCompiler GMStateMk1 where
-    compile = compileMk1
-    eval = evalMk1
-    showStateTrace = showResultsMk1
+gmachineMk1 :: Compiler
+gmachineMk1 = Compiler
+    "gmachinemk1"
+    (compileMk1 >=> evalMk1 >=> return .
+    map (\st -> defaultState
+        { output = showResultMk1 st
+        , statistics = pack $ show st }))
 
-gmachineMk1 :: GMStateMk1
-gmachineMk1 = undefined
+showResultMk1 = pack . either id show . (\st -> H.lookup (head $ _stack st) (_heap st))
 
 data GMStateMk1 = GMS { _code :: [Instruction], _stack :: [Addr]
                    , _heap :: Heap Node    , _globals :: [(Text, Addr)]
@@ -51,11 +53,6 @@ data Node = NNum Int
           | NAp Addr Addr
           | NGlobal Int [Instruction]
           deriving (Eq, Show)
-
-showResultsMk1 :: [GMStateMk1] -> Text
-showResultsMk1 = pack . (\result ->
-        show result ++ "\nfinal result: "
-        ++ show (H.lookup (head $ _stack result) $ _heap result)) . last
 
 evalMk1 :: GMStateMk1 -> ThrowsError [GMStateMk1]
 evalMk1 state = do

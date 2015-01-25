@@ -1,7 +1,8 @@
 module Main where
 
 import qualified Data.Text.IO as TIO
-import Data.Text as T (isPrefixOf, unlines, pack, unpack)
+import Data.Text as T (unlines, pack, unpack)
+import Data.List (isPrefixOf, intercalate)
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -16,20 +17,24 @@ import Core.Types
 import Core.Parser
 import Core.PrettyPrint
 
---import Core.Compiler.TemplateMk1
+import Core.Compiler.TemplateMk1
 import Core.Compiler.TemplateMk3
---import Core.Compiler.GMachineMk1
---import Core.Compiler.GMachineMk2
---import Core.Compiler.GMachineMk3
---import Core.Compiler.GMachineMk4
---import Core.Compiler.GMachineMk5
+import Core.Compiler.GMachineMk1
+import Core.Compiler.GMachineMk2
+import Core.Compiler.GMachineMk3
+import Core.Compiler.GMachineMk4
+import Core.Compiler.GMachineMk5
 import Core.Compiler.GMachineMk6
---import Core.Compiler.GMachineMk7
+import Core.Compiler.GMachineMk7
 
 import Core.Compiler
 import Core.Util.Prelude
 
-compilers = [templateMk3, gmachineMk6]
+compilers = [templateMk1, templateMk3
+    , gmachineMk1, gmachineMk2, gmachineMk3, gmachineMk4
+    , gmachineMk5, gmachineMk6, gmachineMk7
+--    , timMk1
+    ]
 
 data REPLConfig = Conf { _compiler :: Compiler, _run :: RunCore, _timeIt :: Bool }
 defaultConfig = Conf gmachineMk6 run False
@@ -48,15 +53,13 @@ main =
                 (parseEvalFile (_compiler conf) (_run conf) (TIO.putStrLn . last) fname)
                 (putStrLn . (("failure reading " ++ fname ++ "\n")++) . show)
 
-
-        coreCompletions word =
-            return $ filter (T.isPrefixOf word)
-                    primitives -- (map fst readOnlys ++ map fst bindings ++ map fst replFuncs)
-                    --- what to autocomplete...
-                >>= \rep -> return Completion { replacement = unpack rep, display = unpack rep
-                                              , isFinished = rep == word }
+        coreCompletions word = return $
+            let reps = filter (isPrefixOf word) $
+                        map unpack primitives ++ map fst replFuncs
+            in flip map reps $ \rep -> Completion { replacement = rep
+                                 , display = rep, isFinished = rep == word }
         haskelineSettings = flip setComplete defaultSettings $ \line -> do
-            (_, cs1) <- completeWord Nothing " \t\n\r\f\v" (coreCompletions . pack) line
+            (_, cs1) <- completeWord Nothing " \t\n\r\f\v" coreCompletions line
             (s, cs2) <- completeFilename line
             return (s, cs1 ++ cs2)
 
@@ -72,7 +75,7 @@ loop conf = do
                     (parseEvalText (_compiler conf) (_run conf)
                     (TIO.putStrLn . last) (pack expr))
                 >> loop conf)
-            ($ conf)
+            (\f -> f conf (tail $ words expr))
             (lookup (head $ words expr) replFuncs)
         ) userSays
 
@@ -84,12 +87,26 @@ time action = do
     return res
 
 replFuncs =
-    [ (".?",    \conf -> outputStrLn helpStr >> loop conf)
-    , (".help", \conf -> liftIO (TIO.putStrLn (T.unlines primitives)) >> loop conf)
-    , (".toggletime", \conf -> do
+    [ (".?",    \conf _ -> outputStrLn helpStr >> loop conf)
+    , (".help", \conf _ -> liftIO (TIO.putStrLn (T.unlines primitives)) >> loop conf)
+    , (".compiler", \conf args ->
+        let help = outputStrLn $ "compilers available: " ++
+                intercalate ", " (map (unpack . compilerName) compilers)
+        in case args of
+            [] -> help >> loop conf
+            (x:_) -> maybe (help >> loop conf)
+                (\newcomp -> loop $ conf { _compiler = newcomp})
+                $ lookup (pack x) (map (\c -> (compilerName c, c)) compilers))
+    , (".debugon", \conf _ -> do
+        outputStrLn "debugging enabled, use .debugoff to disable"
+        loop $ conf{ _run = runTest })
+    , (".debugoff", \conf _ -> do
+        outputStrLn "debugging disabled, use .debugon to enable"
+        loop $ conf{ _run = run })
+    , (".toggletime", \conf _ -> do
         outputStrLn $ "timing enabled: " ++ show (not (_timeIt conf))
         loop $ conf{ _timeIt = not $ _timeIt conf })
-    , (".quit", \conf -> outputStrLn "au revoir")
+    , (".quit", \conf _ -> outputStrLn "au revoir")
     ]
 
 helpStr = "Type a core expression or a REPL command: " ++ unwords (map fst replFuncs)

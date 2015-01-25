@@ -19,14 +19,15 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-gmachineMk5 :: GMStateMk5
-gmachineMk5 = undefined
+gmachineMk5 :: Compiler
+gmachineMk5 = Compiler
+    "gmachinemk5"
+    (compileMk5 >=> evalMk5 >=> return .
+    map (\st -> defaultState
+        { output = showResultMk5 st
+        , statistics = pack $ show st }))
 
-instance CoreCompiler GMStateMk5 where
-    compile = compileMk5
-    eval = evalMk5
-    showStateTrace = showResultsMk5
-    showResult = showResultMk5
+showResultMk5 = pack . either id show . getStackTop
 
 data GMStateMk5 = GMS { _code :: [Instruction], _stack :: [Addr]
                     , _dump :: [([Instruction], [Addr])]
@@ -132,13 +133,6 @@ isNum _ = False
 
 isGlobal (NGlobal{}) = True
 isGlobal _ = False
-
-showResultsMk5 :: [GMStateMk5] -> Text
-showResultsMk5 states =
-    (pack . (++"\n\n") . show . last) states
-    `append` "\nfinal result: " `append` showResultMk5 states
-
-showResultMk5 = pack . show . getStackTop . last
 
 evalMk5 :: GMStateMk5 -> ThrowsError [GMStateMk5]
 evalMk5 state = do

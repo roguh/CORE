@@ -4,7 +4,7 @@ module Core.Compiler.TemplateMk1
 --(compile, eval, showResults, runCore)
 where
 
-import Data.Text as Text
+import Data.Text as Text hiding (map, head)
 import qualified Data.Text.IO as TIO
 
 import Control.Monad
@@ -20,13 +20,21 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-templateMk1 :: TiStateMk1
-templateMk1 = undefined
+templateMk1 :: Compiler
+templateMk1 = Compiler
+    "templatemk1"
+    (compileMk1 >=> evalMk1 >=> return .
+    map (\st -> defaultState
+        { output = pack $ either showErr show $
+            H.lookup (head $ _stack st) (_heap st)
+        , statistics = pack $ showState st}))
 
-instance CoreCompiler TiStateMk1 where
-    compile = compileMk1
-    eval = evalMk1
-    showStateTrace = showResultsMk1
+showState (TS stk dump heap globs stats) =
+   "stack: " ++ show stk ++
+    "\ndump: " ++ show dump ++
+    "\nglobs: " ++ show globs ++
+    "\nsteps taken: " ++ show stats ++
+    "\n" ++ showHeap heap
 
 data Node = NApp Addr Addr
           | NSupercombo Text [Text] (Expr Text)
@@ -73,21 +81,6 @@ compileMk1 program = do
 
 buildInitialHeap = mapAccuml allocateSupercombo H.init
 
-showResultsMk1 :: [TiStateMk1] -> Text
-showResultsMk1 [] = "no results!"
-showResultsMk1 ts = Text.concat (Prelude.map (\s -> pack (showResult' s) `append` "\n\n") ts)
-             `append` "final result: "
-             `append` either (pack . show) (pack . show)
-                (H.lookup (Prelude.head $ _stack final) (_heap final))
-    where   final = Prelude.last ts
-
-showResult' (TS stk dump heap globs stats) =
-   "stack: " ++ show stk ++
-    "\ndump: " ++ show dump ++
-    "\nglobs: " ++ show globs ++
-    "\nsteps taken: " ++ show stats ++
-    "\n" ++ showHeap heap
-
 allocateSupercombo heap (Supercombo name bs bod) =
     let (heap', addr) = H.alloc (NSupercombo name bs bod) heap
     in (heap', (name, addr))
@@ -112,7 +105,7 @@ evalMk1With cfg state = do
     isFin <- isFinal state
     rest <- -- step trace in case of error
         (if not $ printStepTrace cfg then id else
-        flip catchError (\e -> throwError $ showResult' state ++ "\n\n" ++ e))
+        flip catchError (\e -> throwError $ showState state ++ "\n\n" ++ e))
             (if isFin
             then return []
             else liftM (doAdmin state) (step state) >>= evalMk1With cfg)

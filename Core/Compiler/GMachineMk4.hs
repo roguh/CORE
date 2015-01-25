@@ -19,14 +19,15 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-gmachineMk4 :: GMStateMk4
-gmachineMk4 = undefined
+gmachineMk4 :: Compiler
+gmachineMk4 = Compiler
+    "gmachinemk4"
+    (compileMk4 >=> evalMk4 >=> return .
+    map (\st -> defaultState
+        { output = showResultMk4 st
+        , statistics = pack $ show st }))
 
-instance CoreCompiler GMStateMk4 where
-    compile = compileMk4
-    eval = evalMk4
-    showStateTrace = showResultsMk4
-    showResult = showResultMk4
+showResultMk4 = pack . either id show . (\st -> H.lookup (head $ _stack st) (_heap st))
 
 data GMStateMk4 = GMS { _code :: [Instruction], _stack :: [Addr]
                     , _dump :: [([Instruction], [Addr])]
@@ -132,12 +133,6 @@ isNum _ = False
 
 isGlobal (NGlobal{}) = True
 isGlobal _ = False
-
-showResultsMk4 :: [GMStateMk4] -> Text
-showResultsMk4 states = (pack . (++"\n\n") . show . last) states
-    `Text.append` "\nfinal result: " `Text.append` showResultMk4 states
-
-showResultMk4 = pack . show . getStackTop . last
 
 evalMk4 :: GMStateMk4 -> ThrowsError [GMStateMk4]
 evalMk4 state = do
