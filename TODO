@@ -1,18 +1,48 @@
-GMachine mk6
-    fix letrec bindings, see program let3.core
+comments!
+    compiler schemes + state transitions + general goals...
 
-incremental output: works ok @ indexing, it must print each element as it is evaluated though...
-    let rs = readFile "cores/test_compiler/ultimateTest.core" >>= return . either ((:[]).pack) id . (parse "" >=> compileMk6 >=> evalMk6 >=> return . showIncrementalResults) . pack >>= (putStrLn . unpack . (!!1001))
+    add warnings to Mk5 and below and to template instantiators
 
-garbage collector
+performances test cases
+    tail call recursions, many arguments, complicated expressions...
 
-lambda lifter
+global improvements
+    implement incremental output using pipes
 
-GMachine mk7
+    modernize the code of the compilers, evaluators of gmachine Mk6 and TIM Mk n
+        when done...
 
-TIM
+        more than just monadic errors, can the data structures be simplified?
+        the code traversals?
 
-parallel GMachine
+    improve pretty printing code
+        use an actual library
 
-STG - spineless tagless gmachine
-    see Peyton Jones' other paper
+    unify statistics gathering
+        steps, labelled steps ("supercombo reductions", Int)
+
+        stack depth
+
+        heap stats
+
+    garbage collection
+
+    lambda lifter!
+        good annotation strategy?
+
+complete template inst. machine
+
+complete TIM
+
+parallelize gmachine
+
+gmachine
+    add cond and print as primitives to mk6+
+
+    how to print structured data?
+
+    make code nice, add warnings to mk5 and below
+
+    make a non-updating gmachine
+
+    garbage collection plz

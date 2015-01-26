@@ -32,7 +32,7 @@ runTest fname (Compiler{ compiler=comp }) =
 parseEval :: FilePath -> Compiler -> RunCore -> ([Text] -> IO ()) -> Text -> IO ()
 parseEval fname compiler runFunc printer =
     let rs = runFunc fname compiler
-    in either (printer . (:[]) . pack) printer . rs
+    in printer . either ((:[]) . pack) id . rs
 
 parseEvalText = parseEval ""
 parseEvalFile comp run print fname = readFile fname >>= parseEval fname comp run print

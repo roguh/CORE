@@ -1,0 +1,35 @@
+{-# LANGUAGE OverloadedStrings #-}
+module Core.Compiler.TimMk1
+where
+
+import Control.Monad
+import Control.Monad.Error
+
+import Data.Text (Text, pack, unpack, append)
+import qualified Data.Text as Text (concat, unwords)
+import Data.Maybe
+import Data.List
+
+import Util
+
+import Core.Types
+
+import Core.Parser (parseConstructor)
+import Core.Util.Heap as H
+import Core.Util.Prelude
+
+import Core.Compiler
+
+gmachineMk1 :: Compiler
+gmachineMk1 = Compiler
+    "timmk1"
+    (compileMk1 >=> evalMk1 >=> return .
+    map (\st -> defaultState
+        { output = showResultMk1 st
+        , statistics = pack $ show st }))
+
+showResultMk1 = undefined
+
+compileMk1 = undefined
+
+evalMk1 = undefined

@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS -Wall #-}
 module Core.Compiler.TemplateMk3
 --(compile, eval, showResults, runCore)
 where

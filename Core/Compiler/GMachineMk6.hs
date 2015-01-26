@@ -444,7 +444,6 @@ compileAlts compileAltExpr env = mapM compileAlt
             exprCode <- compileAltExpr env' expr
             return (tag, [Split n] ++ exprCode ++ [Slide n])
 
-
 argOffset n env = do
     (v, m) <- env
     return (v, n + m)
