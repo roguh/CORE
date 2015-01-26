@@ -3,9 +3,6 @@
 }:
 let
   hsEnv = haskellPackages.ghcWithPackages (hsPkgs : (with hsPkgs ; [
-    hlint
-    ghcMod
-    hdevtools
     parsec
     text
     haskeline
