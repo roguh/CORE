@@ -1,7 +1,7 @@
 module Main where
 
 import qualified Data.Text.IO as TIO
-import Data.Text as T (unlines, pack, unpack)
+import Data.Text as T (unlines, pack, unpack, null)
 import Data.List (isPrefixOf, intercalate)
 
 import Control.Monad
@@ -26,6 +26,7 @@ import Core.Compiler.GMachineMk4
 import Core.Compiler.GMachineMk5
 import Core.Compiler.GMachineMk6
 import Core.Compiler.GMachineMk7
+import Core.Compiler.TimMk1
 
 import Core.Compiler
 import Core.Util.Prelude
@@ -33,7 +34,7 @@ import Core.Util.Prelude
 compilers = [templateMk1, templateMk3
     , gmachineMk1, gmachineMk2, gmachineMk3, gmachineMk4
     , gmachineMk5, gmachineMk6, gmachineMk7
---    , timMk1
+    , timMk1
     ]
 
 data REPLConfig = Conf { _compiler :: Compiler, _run :: RunCore, _timeIt :: Bool }
@@ -45,9 +46,10 @@ main =
         hSetBuffering stdin NoBuffering
         as <- getArgs
         case length as of
-            0 -> do putStrLn helpStr
+            _ -> do putStrLn helpStr
                     runInputT haskelineSettings (loop defaultConfig)
-            _ -> return ()
+            -- must add file processing...
+            -- _ -> return ()
      where
         evalFile conf fname = catchIOError
                 (parseEvalFile (_compiler conf) (_run conf) (TIO.putStrLn . last) fname)
@@ -71,31 +73,33 @@ loop conf = do
         (return ())
         (\expr ->
             maybe
-            (   liftIO
+            (  liftIO
                     (parseEvalText (_compiler conf) (_run conf)
-                    (TIO.putStrLn . last) (pack expr))
+                    ((if _timeIt conf then time else id) . TIO.putStrLn . last) (pack expr))
                 >> loop conf)
             (\f -> f conf (tail $ words expr))
             (lookup (head $ words expr) replFuncs)
         ) userSays
 
 time action = do
-    a <- liftIO getCPUTime
+    a <- getCPUTime
     res <- action
-    b <- liftIO getCPUTime
-    outputStrLn $ "time: " ++ show (fromIntegral (b - a) / 1e12)
+    b <- getCPUTime
+    putStrLn $ "time: " ++ show (fromIntegral (b - a) / 1e12)
     return res
 
 replFuncs =
     [ (".?",    \conf _ -> outputStrLn helpStr >> loop conf)
     , (".help", \conf _ -> liftIO (TIO.putStrLn (T.unlines primitives)) >> loop conf)
     , (".compiler", \conf args ->
-        let help = outputStrLn $ "compilers available: " ++
+        let help = outputStrLn $ "if in doubt, use gmachinemk6. compilers available: " ++
                 intercalate ", " (map (unpack . compilerName) compilers)
         in case args of
             [] -> help >> loop conf
             (x:_) -> maybe (help >> loop conf)
-                (\newcomp -> loop $ conf { _compiler = newcomp})
+                (\newcomp -> do
+                    outputStrLn ("changing compiler to " ++ x)
+                    loop $ conf { _compiler = newcomp})
                 $ lookup (pack x) (map (\c -> (compilerName c, c)) compilers))
     , (".debugon", \conf _ -> do
         outputStrLn "debugging enabled, use .debugoff to disable"
