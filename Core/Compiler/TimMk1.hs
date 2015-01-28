@@ -134,6 +134,59 @@ takeStep state = liftM admin $ step (head $ _instr state) state{_instr = tail $ 
      admin st@(TS{_statistics = stats}) = st{_statistics =
        stats{_steps = _steps stats + 1, _heapstats = H._hstats $ _heap st}}
 
+{-
+
+State transition description of the evaluation of each instruction
+
+See 2.2 State Transition Systems in Implementing Functional Languages:
+a tutorial by Simon Peyton Jones, but these are fairly easy to read as long
+as you know functional linked lists ([], :)
+
+
+Take n points the program to a new frame of size n
+
+---------------------------------------------------------------
+Take n:i frame  c1 : ... : cn : stk heap                      c
+       i frame'                 stk heap[f' -> [c1, ..., cn]] c
+---------------------------------------------------------------
+
+
+Push fetches the nth closure from the frame and pushes it onto the stack
+
+---------------------------------------------------------------
+Push (Arg k):i frame          stk heap[f -> (i1, f1), ..., (ik, fk), ..., (in, fn)] c
+             i frame (ik, fk):stk heap                                              c
+
+Push (Label l):i frame                   stk heap c[l -> newinstr]
+               i frame (newinstr, frame):stk heap c
+
+Push (Code newinstr):i frame                   stk heap c
+                     i frame (newinstr, frame):stk heap c
+
+Push (IntConst n):i frame             stk heap c
+                  i frame ([], Int n):stk heap c
+---------------------------------------------------------------
+Notice IntConst makes a new closure with an empty instruction sequence, this
+is basically the halt command to this machine. All the Mk1 can really do is
+print single integers or loop forever...
+
+
+Enter relates directly to Push. It always changes the machine's current code.
+---------------------------------------------------------------
+[Enter (Label l)] frame stk heap c[l -> i]
+                i frame stk heap c
+
+
+[Enter (Arg k)] frame stk heap[f -> (i1, f1), ..., (ik, fk), ..., (in, fn)] c
+             ik fk    stk heap
+
+[Enter (Code i)] frame stk heap c
+               i frame stk heap c
+
+[Enter (IntConst n)] frame   stk heap c
+                  [] (Int n) stk heap c
+-}
+
 step (Take n) state
     | length (_stack state) < n = throwError "too few args for Take instruction"
     | otherwise = return state{ _heap = newheap, _frame = FrameAddr newframe, _stack = drop n $ _stack state }
