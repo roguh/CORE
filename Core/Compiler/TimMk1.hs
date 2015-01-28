@@ -54,77 +54,107 @@ import Core.Util.Prelude
 
 import Core.Compiler
 
-gmachineMk1 :: Compiler
-gmachineMk1 = Compiler
-    "timmk1"
+timMk1 :: Compiler
+timMk1 = Compiler
+    "timMk1"
     (compileMk1 >=> evalMk1 >=> return .
     map (\st -> defaultState
         { output = showResultMk1 st
         , statistics = pack $ show st }))
 
 data TimStateMk1 = TS
-        { _instr :: Instr, _frame :: FramePtr, _stack :: [Closure]
+        { _instr :: [Instr], _frame :: FramePtr, _stack :: [Closure]
         , _valueStack :: ValueStack, _dump :: Dump -- not used in Mk1
         , _heap :: Heap Frame, _codestore :: [(Text, [Instr])]
         , _statistics :: Statistics
-        }
+        } deriving (Eq)
+
+instance Show TimStateMk1 where
+    show (TS instr frame stack valuestack dump heap codestore stats) =
+        "stack: " ++ show stack
+     -- ++ "\nstack references: " ++ showStack heap stack
+     ++ "\ndump: " ++ show dump
+     ++ "\nvstack: " ++ show valuestack
+     ++ "\nheap: " ++ show heap -- showHeap' heap
+     ++ "\ncurrent frame:" ++ show frame
+     ++ "\ncurrent instructions: " ++ show instr
+     ++ "\ncode store: " ++ show codestore
+     ++ "\nstats: " ++ show stats ++"\n"
+
+
 
 type Frame = [Closure]
 
 data Instr = Take Int
            | Enter AMode
            | Push AMode
+           deriving (Eq, Show)
 
 data AMode = Arg Int
            | Label Text
            | Code [Instr]
            | IntConst Int
+           deriving (Eq, Show)
 
 data Closure = Closure [Instr] FramePtr
+            deriving (Eq, Show)
 
 data FramePtr = FrameAddr Addr
               | FrameInt Int
               | FrameNull
               deriving (Show, Eq)
 
-fromFrameAddr (FrameAddr a) = a
+fromFrameAddr (FrameAddr a) = return a
 fromFrameAddr x = throwError $ "expected frame address, received: " ++ show x
 
 data ValueStack = ValueStack
+            deriving (Eq, Show)
 
 data Dump = Dump
+            deriving (Eq, Show)
 
 data Statistics = Stats { _steps :: Int, _heapstats :: HStats }
+            deriving (Eq, Show)
 initStatistics = Stats 0 initHStats
 
-showResultMk1 = undefined
+showResultMk1 = pack . show . _frame
 
-evalMk1 state = return (state : rest_states)
-    where rest_states | isFinal state = []
-                      | otherwise = evalMk1 next_state
-          next_state = admin $ step (head $ _instr state) state{_instr = tail $ _instruction state}
-          admin st@(TS{_statistics = stats}) = st{_statistics =
-            stats{_steps = _steps stats + 1, _heapstats = H._hstats $ _heap st}}
+evalMk1 state = do
+    rest_states <- if isFinal state then return [] else
+      do
+        next_state <- takeStep state
+        evalMk1 $ next_state
+      `catchError` (\e -> throwError $ "STATE TRACE\n" ++ show state ++ "\n\n" ++ e)
+    return (state : rest_states)
+    where
           isFinal = (==[]) . _instr
+
+takeStep state = liftM admin $ step (head $ _instr state) state{_instr = tail $ _instr state}
+    where
+     admin st@(TS{_statistics = stats}) = st{_statistics =
+       stats{_steps = _steps stats + 1, _heapstats = H._hstats $ _heap st}}
 
 step (Take n) state
     | length (_stack state) < n = throwError "too few args for Take instruction"
-    | otherwise = state{ _heap = newheap, _frame = FrameAddr newframe }
+    | otherwise = return state{ _heap = newheap, _frame = FrameAddr newframe, _stack = drop n $ _stack state }
     where (newheap, newframe) = H.alloc (take n $ _stack state) (_heap state)
 
-step (Enter mode) st = st { _instr = instr', _frame = frame' }
-    where (Closure instr' frame') =
-            modeToClosure mode (_frame st) (_heap st) (_codestore st)
+step (Enter mode) st = do
+    (Closure instr' frame') <- modeToClosure mode (_frame st) (_heap st) (_codestore st)
+    return st { _instr = instr', _frame = frame' }
 
-step (Push mode) st  = st { _stack =
-        modeToClosure mode (_frame st) (_heap st) (_codestore st): _stack st }
+step (Push mode) st  = do
+    closure <- modeToClosure mode (_frame st) (_heap st) (_codestore st)
+    return st { _stack = closure : _stack st }
 
 modeToClosure (Arg n)      frame heap codestore = do
-    frames <- H.lookup frame heap
+    addr <- fromFrameAddr frame
+    frames <- H.lookup addr heap
     return $ frames !! (n - 1)
 modeToClosure (Code il)    frame heap codestore = return $ Closure il frame
 modeToClosure (Label l)    frame heap codestore = do
-    code <- maybe (throwError $ "label not found: " ++ l) return $ Prelude.lookup l codestore
+    code <- maybe (throwError $ "label not found: " ++ unpack l) return
+        $ Prelude.lookup l codestore
     return $ Closure code frame
 modeToClosure (IntConst n) frame heap codestore = return $ Closure intCode (FrameInt n)
 
@@ -164,22 +194,28 @@ compileMk1 program = do
 
 type CompilerEnv = [(Text, AMode)]
 
-compileSC env (Supercombo name args e) =
-    (name, Take (length args) : instr)
-    where instr = compileR e newEnv
-          newEnv = zip args (map Arg [1..]) ++ env
+type Env = [(Text, AMode)]
+
+compileSC :: Env -> Supercombo Text -> ThrowsError (Text, [Instr])
+compileSC env (Supercombo name args e) = do
+    let newEnv = env ++ zip args (map Arg [1..])
+    instr <- compileR e newEnv
+    return (name, if null args then instr else Take (length args):instr)
 
 
+compileR :: Expr Text -> Env -> ThrowsError [Instr]
 compileR (App e1 e2) env = do
     x <- compileA e2 env
     f <- compileR e1 env
     return $ Push x : f
-compileR e@(Var v)   env = compileA e >>= \var -> return [Enter var]
-compileR e@(Num n)   env = compileA e >>= \num -> return [Enter num]
-compileR e           env = throwError $ "cannot (yet) compile expression: " ++ e
+compileR e@(Var _)   env = compileA e env >>= \var -> return [Enter var]
+compileR e@(Num _)   env = compileA e env >>= \num -> return [Enter num]
+compileR e           _ = throwError $ "cannot (yet) compile expression: " ++ show e
 
 
-compileA (Var v)     env = return $ fromMaybe
-    (throwError $ "unknown variable: " ++ show v) $ Prelude.lookup env v
-compileA (Num n)     env = return $ IntConst n
+compileA :: Expr Text -> Env -> ThrowsError AMode
+compileA (Var v)     env =
+    maybe (throwError $ "unknown variable: " ++ show v) return
+    $ Prelude.lookup v env
+compileA (Num n)     _ = return $ IntConst n
 compileA e           env = liftM Code $ compileR e env

@@ -7,6 +7,9 @@ performances test cases
     tail call recursions, many arguments, complicated expressions...
 
 global improvements
+    implement step by step evaluation
+        as a debugging alternative to incremental output
+
     implement incremental output using pipes
 
     modernize the code of the compilers, evaluators of gmachine Mk6 and TIM Mk n
