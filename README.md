@@ -8,21 +8,22 @@ entirely implemented (up to Mk6).
 
 Simply run Main.hs. You can change the compiler used in this simple REPL,
 though it doesn't have multiline editing or a nice file-loading interface (yet).
-```haskell
+```
 runhaskell Main.hs
 core >>> main = fac 20 ; fac n = if (n <= 0) 1 (n * (fac (n - 1)))
 2432902008176640000
+
 core >>> .compiler gmachinemk1
 changing compiler to gmachinemk1
+
 core >>> main = 4 * 10
 undeclared global: *
+
 core >>> .compiler gmachinemk4
 changing compiler to gmachinemk4
+
 core >>> main = 4 * 10
 NNum 40
-
-runhaskell Main.hs test.core
-
 ```
 
 Can also run through GHCi
