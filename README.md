@@ -51,4 +51,4 @@ Also, I mainly used NixOS for this (Cabal file broken, atm). Sandboxed installat
 nix-shell shell.nix
 ```
 
-Referencing [Implementing functional languages: a tutorial](http://research.microsoft.com/en-us/um/people/simonpj/Papers/pj-lester-book/i).
+Referencing [Implementing functional languages: a tutorial](https://www.microsoft.com/en-us/research/publication/implementing-functional-languages-a-tutorial/).
